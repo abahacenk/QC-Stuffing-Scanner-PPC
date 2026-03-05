@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>PPC Quality & Traceability</title>
+
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+
+<style>
+
+body{
+font-family:Segoe UI;
+background:#f4f6f9;
+text-align:center;
+}
+
+h2{
+margin-top:10px;
+}
+
+#reader{
+width:320px;
+margin:auto;
+}
+
+video{
+width:320px;
+}
+
+button{
+padding:10px 15px;
+margin:5px;
+border:none;
+background:#1976d2;
+color:white;
+border-radius:5px;
+cursor:pointer;
+}
+
+#result{
+margin-top:15px;
+padding:10px;
+background:white;
+border-radius:6px;
+width:90%;
+margin-left:auto;
+margin-right:auto;
+}
+
+#history{
+margin-top:15px;
+background:white;
+padding:10px;
+border-radius:6px;
+width:90%;
+margin-left:auto;
+margin-right:auto;
+max-height:200px;
+overflow:auto;
+}
+
+</style>
+</head>
+
+<body>
+
+<h2>PPC Quality Traceability</h2>
+
+<div id="reader"></div>
+
+<br>
+
+<button onclick="startQR()">Start QR Scan</button>
+<button onclick="startOCR()">Scan LOT (OCR)</button>
+<button onclick="clearHistory()">Hapus History</button>
+
+<div id="result">Result :</div>
+
+<div id="history"></div>
+
+<video id="video" autoplay playsinline style="display:none"></video>
+
+<script>
+
+let video = document.getElementById("video");
+
+function decodeLot(code){
+
+let yearMap={
+"2F":"2025",
+"3F":"2026",
+"4F":"2027"
+};
+
+let monthMap={
+"1A":"October",
+"1B":"November",
+"1C":"December",
+"2A":"January",
+"2B":"February",
+"2C":"March",
+"2D":"April",
+"2E":"May",
+"2F":"June",
+"3A":"July",
+"3B":"August",
+"3C":"September"
+};
+
+let year=yearMap[code.substring(0,2)] || "Unknown";
+let month=monthMap[code.substring(2,4)] || "Unknown";
+
+return {year,month};
+
+}
+
+function showResult(text){
+
+let lotMatch=text.match(/[0-9][A-Z][A-Z0-9]+/);
+
+let lot = lotMatch ? lotMatch[0] : text;
+
+let decode=decodeLot(lot);
+
+document.getElementById("result").innerHTML=
+
+"<b>LOT :</b> "+lot+
+"<br><b>Tahun :</b> "+decode.year+
+"<br><b>Bulan :</b> "+decode.month;
+
+let history=document.getElementById("history");
+
+let item=document.createElement("div");
+
+item.innerHTML=lot+" - "+decode.year+" "+decode.month;
+
+history.prepend(item);
+
+}
+
+function startQR(){
+
+const html5QrCode = new Html5Qrcode("reader");
+
+html5QrCode.start(
+{ facingMode: "environment" },
+{
+fps:10,
+qrbox:250
+},
+(qrCodeMessage)=>{
+showResult(qrCodeMessage);
+html5QrCode.stop();
+}
+);
+
+}
+
+async function startOCR(){
+
+video.style.display="block";
+
+let stream=await navigator.mediaDevices.getUserMedia({video:true});
+
+video.srcObject=stream;
+
+setTimeout(captureOCR,3000);
+
+}
+
+function captureOCR(){
+
+Tesseract.recognize(
+video,
+'eng'
+).then(({ data: { text } }) => {
+
+showResult(text);
+
+video.srcObject.getTracks().forEach(track=>track.stop());
+
+video.style.display="none";
+
+});
+
+}
+
+function clearHistory(){
+
+document.getElementById("history").innerHTML="";
+
+}
+
+</script>
+
+</body>
+</html>
