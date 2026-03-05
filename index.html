@@ -1,65 +1,101 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>PPC Quality & Traceability</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
 
 body{
 font-family:Segoe UI;
-background:#f4f6f9;
-text-align:center;
+background:#0f172a;
+color:white;
+margin:0;
+padding:15px;
 }
 
-h2{
-margin-top:10px;
-}
-
-#reader{
-width:320px;
+.container{
+max-width:520px;
 margin:auto;
 }
 
-video{
-width:320px;
+h1{
+text-align:center;
+color:#38bdf8;
+}
+
+.card{
+background:#1e293b;
+padding:20px;
+border-radius:14px;
+margin-bottom:20px;
+}
+
+input,button{
+width:100%;
+padding:14px;
+margin-top:10px;
+border-radius:10px;
+border:none;
+font-size:16px;
+}
+
+input{
+background:#334155;
+color:white;
 }
 
 button{
-padding:10px 15px;
-margin:5px;
-border:none;
-background:#1976d2;
-color:white;
-border-radius:5px;
+background:#38bdf8;
+font-weight:bold;
 cursor:pointer;
+}
+
+#reader{
+margin-top:10px;
 }
 
 #result{
 margin-top:15px;
-padding:10px;
-background:white;
-border-radius:6px;
-width:90%;
-margin-left:auto;
-margin-right:auto;
+padding:18px;
+border-radius:14px;
+text-align:center;
+display:none;
 }
 
-#history{
-margin-top:15px;
-background:white;
+.green{
+background:#065f46;
+border:2px solid #10b981;
+display:block!important;
+}
+
+.red{
+background:#7f1d1d;
+border:2px solid #ef4444;
+display:block!important;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+font-size:13px;
+}
+
+th,td{
 padding:10px;
-border-radius:6px;
-width:90%;
-margin-left:auto;
-margin-right:auto;
-max-height:200px;
-overflow:auto;
+border-bottom:1px solid #334155;
+}
+
+video{
+width:100%;
+border-radius:10px;
+margin-top:10px;
 }
 
 </style>
@@ -67,138 +103,270 @@ overflow:auto;
 
 <body>
 
-<h2>PPC Quality Traceability</h2>
+<div class="container">
+
+<h1>PPC Quality & Traceability</h1>
+
+<div class="card">
+
+<input id="manual" placeholder="Input Barcode / LOT">
+<button onclick="processCode(document.getElementById('manual').value)">Submit</button>
+
+<hr style="margin:20px 0;border-top:1px solid #334155">
+
+<button onclick="startCamera()">Scan Barcode / QR</button>
 
 <div id="reader"></div>
 
-<br>
+<hr style="margin:20px 0;border-top:1px solid #334155">
 
-<button onclick="startQR()">Start QR Scan</button>
-<button onclick="startOCR()">Scan LOT (OCR)</button>
-<button onclick="clearHistory()">Hapus History</button>
+<button onclick="startOCRCamera()">Scan LOT dari Kamera (OCR)</button>
 
-<div id="result">Result :</div>
+<video id="video" autoplay playsinline></video>
+<button onclick="scanLotOCR()">Ambil Tulisan LOT</button>
 
-<div id="history"></div>
+</div>
 
-<video id="video" autoplay playsinline style="display:none"></video>
+<div id="result"></div>
+
+<h3>Riwayat Scan</h3>
+
+<table>
+
+<thead>
+<tr>
+<th>Waktu</th>
+<th>Kode</th>
+<th>Status</th>
+</tr>
+</thead>
+
+<tbody id="history"></tbody>
+
+</table>
+
+</div>
+
 
 <script>
 
-let video = document.getElementById("video");
+const letters="ABCDEFGHJKLMNPQRSTUVWXYZ"
+const monthLetters="ABCDEFGHJKLM"
 
 function decodeLot(code){
 
-let yearMap={
-"2F":"2025",
-"3F":"2026",
-"4F":"2027"
-};
+code=code.toUpperCase()
 
-let monthMap={
-"1A":"October",
-"1B":"November",
-"1C":"December",
-"2A":"January",
-"2B":"February",
-"2C":"March",
-"2D":"April",
-"2E":"May",
-"2F":"June",
-"3A":"July",
-"3B":"August",
-"3C":"September"
-};
+if(code.length<7)return null
 
-let year=yearMap[code.substring(0,2)] || "Unknown";
-let month=monthMap[code.substring(2,4)] || "Unknown";
+let yearCode=code[3]+code[4]
+let monthCode=code[5]+code[6]
 
-return {year,month};
+let y1=letters.indexOf(yearCode[0])
+let y2=parseInt(yearCode[1])
+
+let year=2020+y2
+
+let m1=parseInt(monthCode[0])
+let m2=letters.indexOf(monthCode[1])
+
+let month=m1*10+m2
+
+if(month>12||month<1)return null
+
+return{
+year:year,
+month:month,
+date:new Date(year,month-1,1),
+area:"PM"
+}
 
 }
 
-function showResult(text){
+function diff(date){
 
-let lotMatch=text.match(/[0-9][A-Z][A-Z0-9]+/);
+let now=new Date()
 
-let lot = lotMatch ? lotMatch[0] : text;
+let months=(now.getFullYear()-date.getFullYear())*12+(now.getMonth()-date.getMonth())
 
-let decode=decodeLot(lot);
+let days=Math.floor((now-date)/86400000)%30
 
-document.getElementById("result").innerHTML=
-
-"<b>LOT :</b> "+lot+
-"<br><b>Tahun :</b> "+decode.year+
-"<br><b>Bulan :</b> "+decode.month;
-
-let history=document.getElementById("history");
-
-let item=document.createElement("div");
-
-item.innerHTML=lot+" - "+decode.year+" "+decode.month;
-
-history.prepend(item);
+return months+" bulan "+days+" hari"
 
 }
 
-function startQR(){
+function processCode(code){
 
-const html5QrCode = new Html5Qrcode("reader");
+const data=decodeLot(code)
 
-html5QrCode.start(
-{ facingMode: "environment" },
-{
-fps:10,
-qrbox:250
-},
-(qrCodeMessage)=>{
-showResult(qrCodeMessage);
-html5QrCode.stop();
-}
-);
+const resultDiv=document.getElementById("result")
+
+if(!data){
+
+alert("LOT tidak valid")
+
+return
 
 }
 
-async function startOCR(){
+let now=new Date()
 
-video.style.display="block";
+let months=(now.getFullYear()-data.year)*12+(now.getMonth()+1-data.month)
 
-let stream=await navigator.mediaDevices.getUserMedia({
-    video: {
-        facingMode: "environment"
-    }
+let expired=months>=2
+
+let status=expired?"EXPIRED / HOLD":"OK - DAPAT DIKIRIM"
+
+resultDiv.className=expired?"red":"green"
+
+resultDiv.innerHTML=
+
+`
+<h2>${status}</h2>
+
+<p>
+
+<strong>Kode:</strong> ${code}<br>
+
+<strong>Area:</strong> ${data.area}<br>
+
+<strong>Produksi:</strong> ${data.month}/${data.year}<br>
+
+<strong>Umur:</strong> ${diff(data.date)}
+
+</p>
+`
+
+saveHistory(code,status)
+
+document.getElementById("manual").value=""
+
+}
+
+function saveHistory(code,status){
+
+let h=JSON.parse(localStorage.getItem("hist")||"[]")
+
+h.unshift({
+
+time:new Date().toLocaleString("id-ID"),
+
+code,
+
+status
+
 })
 
-video.srcObject=stream;
+if(h.length>50)h.pop()
 
-setTimeout(captureOCR,3000);
+localStorage.setItem("hist",JSON.stringify(h))
 
-}
-
-function captureOCR(){
-
-Tesseract.recognize(
-video,
-'eng'
-).then(({ data: { text } }) => {
-
-showResult(text);
-
-video.srcObject.getTracks().forEach(track=>track.stop());
-
-video.style.display="none";
-
-});
+render()
 
 }
 
-function clearHistory(){
+function render(){
 
-document.getElementById("history").innerHTML="";
+let h=JSON.parse(localStorage.getItem("hist")||"[]")
+
+document.getElementById("history").innerHTML=
+
+h.map(r=>`
+
+<tr>
+
+<td>${r.time}</td>
+
+<td>${r.code}</td>
+
+<td style="color:${r.status.includes("OK")?"#10b981":"#ef4444"}">${r.status}</td>
+
+</tr>
+
+`).join("")
 
 }
+
+let scanner
+
+async function startCamera(){
+
+if(scanner)await scanner.clear()
+
+scanner=new Html5Qrcode("reader")
+
+scanner.start(
+
+{facingMode:"environment"},
+
+{fps:15,qrbox:{width:280,height:120}},
+
+(text)=>{
+
+processCode(text)
+
+scanner.stop()
+
+}
+
+)
+
+}
+
+
+let stream
+
+async function startOCRCamera(){
+
+stream=await navigator.mediaDevices.getUserMedia({
+
+video:{facingMode:{ideal:"environment"}}
+
+})
+
+const video=document.getElementById("video")
+
+video.srcObject=stream
+
+video.play()
+
+}
+
+async function scanLotOCR(){
+
+const video=document.getElementById("video")
+
+const canvas=document.createElement("canvas")
+
+canvas.width=video.videoWidth
+
+canvas.height=video.videoHeight
+
+const ctx=canvas.getContext("2d")
+
+ctx.drawImage(video,0,0)
+
+const result=await Tesseract.recognize(canvas,"eng")
+
+let text=result.data.text.replace(/[^A-Z0-9]/g,"")
+
+let lot=text.match(/[A-Z0-9]{10,}/)
+
+if(lot){
+
+processCode(lot[0])
+
+}else{
+
+alert("Tulisan LOT tidak terbaca")
+
+}
+
+}
+
+render()
 
 </script>
 
 </body>
-</html>
+    </html>
