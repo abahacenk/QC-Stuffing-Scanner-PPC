@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>PPC Quality & Traceability</title>
+<title>QC Stuffing Scanner Pro</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -13,28 +12,332 @@
 <style>
 
 body{
-font-family:Segoe UI;
-background:#0f172a;
-color:white;
+font-family:Arial;
 margin:0;
+background:white;
+}
+
+header{
+background:#111;
+color:white;
+text-align:center;
 padding:15px;
+font-size:20px;
+font-weight:bold;
 }
 
 .container{
-max-width:520px;
-margin:auto;
-}
-
-h1{
-text-align:center;
-color:#38bdf8;
-}
-
-.card{
-background:#1e293b;
 padding:20px;
-border-radius:14px;
-margin-bottom:20px;
+}
+
+button{
+width:100%;
+padding:15px;
+margin:10px 0;
+font-size:16px;
+border:none;
+border-radius:6px;
+cursor:pointer;
+}
+
+.btn-red{
+background:#ff2a2a;
+color:white;
+}
+
+.btn-white{
+background:#fff;
+border:1px solid #ccc;
+}
+
+.result{
+background:#f3f3f3;
+padding:15px;
+margin-top:15px;
+border-radius:6px;
+}
+
+.label{
+font-weight:bold;
+}
+
+#reader{
+width:100%;
+margin-top:10px;
+}
+
+#ocrCamera{
+width:100%;
+display:none;
+margin-top:10px;
+}
+
+.close-btn{
+background:black;
+color:white;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+}
+
+table th,table td{
+border:1px solid #ccc;
+padding:8px;
+font-size:12px;
+}
+
+</style>
+</head>
+
+<body>
+
+<header>
+QC STUFFING SCANNER
+</header>
+
+<div class="container">
+
+<button class="btn-red" onclick="startQR()">SCAN QR CODE</button>
+
+<button class="btn-red" onclick="startOCR()">SCAN LOT NUMBER</button>
+
+<button class="btn-white" onclick="manualLot()">INPUT LOT MANUAL</button>
+
+<button class="close-btn" onclick="stopCamera()">CLOSE CAMERA</button>
+
+<div id="reader"></div>
+
+<video id="ocrCamera" autoplay></video>
+
+<canvas id="canvas" style="display:none"></canvas>
+
+<div class="result">
+
+<div><span class="label">LOT :</span> <span id="lot"></span></div>
+<div><span class="label">AREA :</span> <span id="area"></span></div>
+<div><span class="label">YEAR :</span> <span id="year"></span></div>
+<div><span class="label">MONTH :</span> <span id="month"></span></div>
+
+</div>
+
+<button class="btn-red" onclick="saveRecord()">SAVE RECORD</button>
+
+<button class="btn-white" onclick="showHistory()">VIEW HISTORY</button>
+
+<div id="history"></div>
+
+</div>
+
+<script>
+
+let qrScanner
+let stream
+
+function startQR(){
+
+document.getElementById("ocrCamera").style.display="none"
+
+qrScanner=new Html5Qrcode("reader")
+
+qrScanner.start(
+{facingMode:"environment"},
+{fps:10,qrbox:250},
+qr=>{
+alert("QR Detected : "+qr)
+}
+)
+
+}
+
+function startOCR(){
+
+document.getElementById("reader").innerHTML=""
+
+navigator.mediaDevices.getUserMedia({
+video:{facingMode:{exact:"environment"}}
+})
+.then(s=>{
+
+stream=s
+
+let video=document.getElementById("ocrCamera")
+
+video.style.display="block"
+video.srcObject=s
+
+setTimeout(captureOCR,2000)
+
+})
+
+}
+
+function captureOCR(){
+
+let video=document.getElementById("ocrCamera")
+
+let canvas=document.getElementById("canvas")
+
+canvas.width=video.videoWidth
+canvas.height=video.videoHeight
+
+let ctx=canvas.getContext("2d")
+
+ctx.drawImage(video,0,0)
+
+Tesseract.recognize(canvas,'eng')
+.then(result=>{
+
+let text=result.data.text
+
+let lotMatch=text.match(/[A-Z0-9]{10,}/)
+
+if(lotMatch){
+
+let lot=lotMatch[0]
+
+processLot(lot)
+
+}
+
+})
+
+}
+
+function processLot(lot){
+
+document.getElementById("lot").innerText=lot
+
+let areaCode=lot[0]
+
+let yearCode=lot.substring(3,5)
+
+let monthCode=lot.substring(5,7)
+
+let area=decodeArea(areaCode)
+
+let year=decodeYear(yearCode)
+
+let month=decodeMonth(monthCode)
+
+document.getElementById("area").innerText=area
+document.getElementById("year").innerText=year
+document.getElementById("month").innerText=month
+
+}
+
+function decodeArea(c){
+
+let alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+return "PM"+alphabet.indexOf(c)
+
+}
+
+function decodeYear(code){
+
+let map={
+"2F":2025,
+"2E":2024,
+"2D":2023
+}
+
+return map[code] || code
+
+}
+
+function decodeMonth(code){
+
+let map={
+"1A":"October",
+"1B":"November",
+"1C":"December"
+}
+
+return map[code] || code
+
+}
+
+function manualLot(){
+
+let lot=prompt("Masukkan Nomor LOT")
+
+if(lot){
+
+processLot(lot)
+
+}
+
+}
+
+function stopCamera(){
+
+if(stream){
+
+stream.getTracks().forEach(track=>track.stop())
+
+}
+
+if(qrScanner){
+
+qrScanner.stop()
+
+}
+
+document.getElementById("ocrCamera").style.display="none"
+
+}
+
+function saveRecord(){
+
+let data={
+lot:document.getElementById("lot").innerText,
+area:document.getElementById("area").innerText,
+year:document.getElementById("year").innerText,
+month:document.getElementById("month").innerText,
+time:new Date().toLocaleString()
+}
+
+let history=JSON.parse(localStorage.getItem("qcHistory")||"[]")
+
+history.push(data)
+
+localStorage.setItem("qcHistory",JSON.stringify(history))
+
+alert("Saved")
+
+}
+
+function showHistory(){
+
+let history=JSON.parse(localStorage.getItem("qcHistory")||"[]")
+
+let html="<table><tr><th>LOT</th><th>AREA</th><th>YEAR</th><th>MONTH</th><th>TIME</th></tr>"
+
+history.forEach(h=>{
+
+html+=`<tr>
+<td>${h.lot}</td>
+<td>${h.area}</td>
+<td>${h.year}</td>
+<td>${h.month}</td>
+<td>${h.time}</td>
+</tr>`
+
+})
+
+html+="</table>"
+
+document.getElementById("history").innerHTML=html
+
+}
+
+</script>
+
+</body>
+</html>margin-bottom:20px;
 }
 
 input,button{
