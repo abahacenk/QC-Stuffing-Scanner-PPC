@@ -4,340 +4,28 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>QC Stuffing Scanner Pro</title>
+<title>PPC Quality & Traceability</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
 
 body{
-font-family:Arial;
+font-family:Arial, sans-serif;
 margin:0;
-background:white;
-}
-
-header{
-background:#111;
+background:#0f172a;
 color:white;
-text-align:center;
-padding:15px;
-font-size:20px;
-font-weight:bold;
 }
 
 .container{
+max-width:500px;
+margin:auto;
 padding:20px;
 }
 
-button{
-width:100%;
-padding:15px;
-margin:10px 0;
-font-size:16px;
-border:none;
-border-radius:6px;
-cursor:pointer;
-}
-
-.btn-red{
-background:#ff2a2a;
-color:white;
-}
-
-.btn-white{
-background:#fff;
-border:1px solid #ccc;
-}
-
-.result{
-background:#f3f3f3;
-padding:15px;
-margin-top:15px;
-border-radius:6px;
-}
-
-.label{
-font-weight:bold;
-}
-
-#reader{
-width:100%;
-margin-top:10px;
-}
-
-#ocrCamera{
-width:100%;
-display:none;
-margin-top:10px;
-}
-
-.close-btn{
-background:black;
-color:white;
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-margin-top:20px;
-}
-
-table th,table td{
-border:1px solid #ccc;
-padding:8px;
-font-size:12px;
-}
-
-</style>
-</head>
-
-<body>
-
-<header>
-QC STUFFING SCANNER
-</header>
-
-<div class="container">
-
-<button class="btn-red" onclick="startQR()">SCAN QR CODE</button>
-
-<button class="btn-red" onclick="startOCR()">SCAN LOT NUMBER</button>
-
-<button class="btn-white" onclick="manualLot()">INPUT LOT MANUAL</button>
-
-<button class="close-btn" onclick="stopCamera()">CLOSE CAMERA</button>
-
-<div id="reader"></div>
-
-<video id="ocrCamera" autoplay></video>
-
-<canvas id="canvas" style="display:none"></canvas>
-
-<div class="result">
-
-<div><span class="label">LOT :</span> <span id="lot"></span></div>
-<div><span class="label">AREA :</span> <span id="area"></span></div>
-<div><span class="label">YEAR :</span> <span id="year"></span></div>
-<div><span class="label">MONTH :</span> <span id="month"></span></div>
-
-</div>
-
-<button class="btn-red" onclick="saveRecord()">SAVE RECORD</button>
-
-<button class="btn-white" onclick="showHistory()">VIEW HISTORY</button>
-
-<div id="history"></div>
-
-</div>
-
-<script>
-
-let qrScanner
-let stream
-
-function startQR(){
-
-document.getElementById("ocrCamera").style.display="none"
-
-qrScanner=new Html5Qrcode("reader")
-
-qrScanner.start(
-{facingMode:"environment"},
-{fps:10,qrbox:250},
-qr=>{
-alert("QR Detected : "+qr)
-}
-)
-
-}
-
-function startOCR(){
-
-document.getElementById("reader").innerHTML=""
-
-navigator.mediaDevices.getUserMedia({
-video:{facingMode:{exact:"environment"}}
-})
-.then(s=>{
-
-stream=s
-
-let video=document.getElementById("ocrCamera")
-
-video.style.display="block"
-video.srcObject=s
-
-setTimeout(captureOCR,2000)
-
-})
-
-}
-
-function captureOCR(){
-
-let video=document.getElementById("ocrCamera")
-
-let canvas=document.getElementById("canvas")
-
-canvas.width=video.videoWidth
-canvas.height=video.videoHeight
-
-let ctx=canvas.getContext("2d")
-
-ctx.drawImage(video,0,0)
-
-Tesseract.recognize(canvas,'eng')
-.then(result=>{
-
-let text=result.data.text
-
-let lotMatch=text.match(/[A-Z0-9]{10,}/)
-
-if(lotMatch){
-
-let lot=lotMatch[0]
-
-processLot(lot)
-
-}
-
-})
-
-}
-
-function processLot(lot){
-
-document.getElementById("lot").innerText=lot
-
-let areaCode=lot[0]
-
-let yearCode=lot.substring(3,5)
-
-let monthCode=lot.substring(5,7)
-
-let area=decodeArea(areaCode)
-
-let year=decodeYear(yearCode)
-
-let month=decodeMonth(monthCode)
-
-document.getElementById("area").innerText=area
-document.getElementById("year").innerText=year
-document.getElementById("month").innerText=month
-
-}
-
-function decodeArea(c){
-
-let alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-return "PM"+alphabet.indexOf(c)
-
-}
-
-function decodeYear(code){
-
-let map={
-"2F":2025,
-"2E":2024,
-"2D":2023
-}
-
-return map[code] || code
-
-}
-
-function decodeMonth(code){
-
-let map={
-"1A":"October",
-"1B":"November",
-"1C":"December"
-}
-
-return map[code] || code
-
-}
-
-function manualLot(){
-
-let lot=prompt("Masukkan Nomor LOT")
-
-if(lot){
-
-processLot(lot)
-
-}
-
-}
-
-function stopCamera(){
-
-if(stream){
-
-stream.getTracks().forEach(track=>track.stop())
-
-}
-
-if(qrScanner){
-
-qrScanner.stop()
-
-}
-
-document.getElementById("ocrCamera").style.display="none"
-
-}
-
-function saveRecord(){
-
-let data={
-lot:document.getElementById("lot").innerText,
-area:document.getElementById("area").innerText,
-year:document.getElementById("year").innerText,
-month:document.getElementById("month").innerText,
-time:new Date().toLocaleString()
-}
-
-let history=JSON.parse(localStorage.getItem("qcHistory")||"[]")
-
-history.push(data)
-
-localStorage.setItem("qcHistory",JSON.stringify(history))
-
-alert("Saved")
-
-}
-
-function showHistory(){
-
-let history=JSON.parse(localStorage.getItem("qcHistory")||"[]")
-
-let html="<table><tr><th>LOT</th><th>AREA</th><th>YEAR</th><th>MONTH</th><th>TIME</th></tr>"
-
-history.forEach(h=>{
-
-html+=`<tr>
-<td>${h.lot}</td>
-<td>${h.area}</td>
-<td>${h.year}</td>
-<td>${h.month}</td>
-<td>${h.time}</td>
-</tr>`
-
-})
-
-html+="</table>"
-
-document.getElementById("history").innerHTML=html
-
-}
-
-</script>
-
-</body>
-</html>margin-bottom:20px;
+h1{
+text-align:center;
+margin-bottom:20px;
 }
 
 input,button{
@@ -360,6 +48,11 @@ font-weight:bold;
 cursor:pointer;
 }
 
+hr{
+margin:20px 0;
+border:1px solid #334155;
+}
+
 #reader{
 margin-top:10px;
 }
@@ -375,30 +68,34 @@ display:none;
 .green{
 background:#065f46;
 border:2px solid #10b981;
-display:block!important;
+display:block !important;
 }
 
 .red{
 background:#7f1d1d;
 border:2px solid #ef4444;
-display:block!important;
+display:block !important;
 }
 
 table{
 width:100%;
 border-collapse:collapse;
 font-size:13px;
+margin-top:20px;
 }
 
 th,td{
 padding:10px;
 border-bottom:1px solid #334155;
+text-align:left;
 }
 
-video{
-width:100%;
-border-radius:10px;
-margin-top:10px;
+.history-btn{
+background:#6366f1;
+}
+
+.clear-btn{
+background:#ef4444;
 }
 
 </style>
@@ -410,266 +107,176 @@ margin-top:10px;
 
 <h1>PPC Quality & Traceability</h1>
 
-<div class="card">
+<input id="inputCode" placeholder="Input Barcode / LOT">
 
-<input id="manual" placeholder="Input Barcode / LOT">
-<button onclick="processCode(document.getElementById('manual').value)">Submit</button>
+<button onclick="processCode()">Submit</button>
 
-<hr style="margin:20px 0;border-top:1px solid #334155">
+<hr>
 
-<button onclick="startCamera()">Scan Barcode / QR</button>
+<button onclick="startScanner()">Scan Barcode / QR</button>
 
 <div id="reader"></div>
 
-<hr style="margin:20px 0;border-top:1px solid #334155">
-
-<button onclick="startOCRCamera()">Scan LOT dari Kamera (OCR)</button>
-
-<video id="video" autoplay playsinline></video>
-<button onclick="scanLotOCR()">Ambil Tulisan LOT</button>
-
-</div>
-
 <div id="result"></div>
 
-<h3>Riwayat Scan</h3>
+<button class="history-btn" onclick="showHistory()">View History</button>
 
-<table>
+<button class="clear-btn" onclick="clearHistory()">Clear History</button>
 
-<thead>
-<tr>
-<th>Waktu</th>
-<th>Kode</th>
-<th>Status</th>
-</tr>
-</thead>
-
-<tbody id="history"></tbody>
-
-</table>
+<div id="historyTable"></div>
 
 </div>
-
 
 <script>
 
-const letters="ABCDEFGHJKLMNPQRSTUVWXYZ"
-const monthLetters="ABCDEFGHJKLM"
-
-function decodeLot(code){
-
-code=code.toUpperCase()
-
-if(code.length<7)return null
-
-let yearCode=code[3]+code[4]
-let monthCode=code[5]+code[6]
-
-let y1=letters.indexOf(yearCode[0])
-let y2=parseInt(yearCode[1])
-
-let year=2020+y2
-
-let m1=parseInt(monthCode[0])
-let m2=letters.indexOf(monthCode[1])
-
-let month=m1*10+m2
-
-if(month>12||month<1)return null
-
-return{
-year:year,
-month:month,
-date:new Date(year,month-1,1),
-area:"PM"
-}
-
-}
-
-function diff(date){
-
-let now=new Date()
-
-let months=(now.getFullYear()-date.getFullYear())*12+(now.getMonth()-date.getMonth())
-
-let days=Math.floor((now-date)/86400000)%30
-
-return months+" bulan "+days+" hari"
-
-}
-
-function processCode(code){
-
-const data=decodeLot(code)
-
-const resultDiv=document.getElementById("result")
-
-if(!data){
-
-alert("LOT tidak valid")
-
-return
-
-}
-
-let now=new Date()
-
-let months=(now.getFullYear()-data.year)*12+(now.getMonth()+1-data.month)
-
-let expired=months>=2
-
-let status=expired?"EXPIRED / HOLD":"OK - DAPAT DIKIRIM"
-
-resultDiv.className=expired?"red":"green"
-
-resultDiv.innerHTML=
-
-`
-<h2>${status}</h2>
-
-<p>
-
-<strong>Kode:</strong> ${code}<br>
-
-<strong>Area:</strong> ${data.area}<br>
-
-<strong>Produksi:</strong> ${data.month}/${data.year}<br>
-
-<strong>Umur:</strong> ${diff(data.date)}
-
-</p>
-`
-
-saveHistory(code,status)
-
-document.getElementById("manual").value=""
-
-}
-
-function saveHistory(code,status){
-
-let h=JSON.parse(localStorage.getItem("hist")||"[]")
-
-h.unshift({
-
-time:new Date().toLocaleString("id-ID"),
-
-code,
-
-status
-
-})
-
-if(h.length>50)h.pop()
-
-localStorage.setItem("hist",JSON.stringify(h))
-
-render()
-
-}
-
-function render(){
-
-let h=JSON.parse(localStorage.getItem("hist")||"[]")
-
-document.getElementById("history").innerHTML=
-
-h.map(r=>`
-
-<tr>
-
-<td>${r.time}</td>
-
-<td>${r.code}</td>
-
-<td style="color:${r.status.includes("OK")?"#10b981":"#ef4444"}">${r.status}</td>
-
-</tr>
-
-`).join("")
-
-}
-
 let scanner
 
-async function startCamera(){
+function startScanner(){
 
-if(scanner)await scanner.clear()
-
-scanner=new Html5Qrcode("reader")
+scanner = new Html5Qrcode("reader")
 
 scanner.start(
+{ facingMode: "environment" },
+{ fps:10, qrbox:250 },
+decoded => {
 
-{facingMode:"environment"},
-
-{fps:15,qrbox:{width:280,height:120}},
-
-(text)=>{
-
-processCode(text)
-
+document.getElementById("inputCode").value = decoded
+processCode()
 scanner.stop()
-
-}
-
-)
-
-}
-
-
-let stream
-
-async function startOCRCamera(){
-
-stream=await navigator.mediaDevices.getUserMedia({
-
-video:{facingMode:{ideal:"environment"}}
 
 })
 
-const video=document.getElementById("video")
+}
 
-video.srcObject=stream
+function processCode(){
 
-video.play()
+let code=document.getElementById("inputCode").value.trim()
+
+if(!code) return
+
+processLot(code)
 
 }
 
-async function scanLotOCR(){
+function processLot(lot){
 
-const video=document.getElementById("video")
+let areaCode = lot[0]
 
-const canvas=document.createElement("canvas")
+let yearCode = lot.substring(3,5)
+let monthCode = lot.substring(5,7)
 
-canvas.width=video.videoWidth
+let area = decodeArea(areaCode)
 
-canvas.height=video.videoHeight
+let year = decodeYear(yearCode)
+let month = decodeMonth(monthCode)
 
-const ctx=canvas.getContext("2d")
+let resultBox=document.getElementById("result")
 
-ctx.drawImage(video,0,0)
+resultBox.innerHTML = `
+<b>LOT</b><br>${lot}<br><br>
+<b>AREA</b><br>${area}<br><br>
+<b>PRODUKSI</b><br>${month} / ${year}
+`
 
-const result=await Tesseract.recognize(canvas,"eng")
+resultBox.className="green"
 
-let text=result.data.text.replace(/[^A-Z0-9]/g,"")
+saveHistory(lot,area,year,month)
 
-let lot=text.match(/[A-Z0-9]{10,}/)
+}
 
-if(lot){
+function decodeArea(code){
 
-processCode(lot[0])
+let alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-}else{
+let num = alphabet.indexOf(code)
 
-alert("Tulisan LOT tidak terbaca")
+if(num<0) return "Unknown"
+
+return "PM"+num
+
+}
+
+function decodeYear(code){
+
+let map={
+"2F":"2025",
+"2E":"2024",
+"2D":"2023"
+}
+
+return map[code] || code
+
+}
+
+function decodeMonth(code){
+
+let map={
+"1A":"October",
+"1B":"November",
+"1C":"December"
+}
+
+return map[code] || code
+
+}
+
+function saveHistory(lot,area,year,month){
+
+let history=JSON.parse(localStorage.getItem("scanHistory")||"[]")
+
+history.push({
+lot:lot,
+area:area,
+year:year,
+month:month,
+time:new Date().toLocaleString()
+})
+
+localStorage.setItem("scanHistory",JSON.stringify(history))
+
+}
+
+function showHistory(){
+
+let history=JSON.parse(localStorage.getItem("scanHistory")||"[]")
+
+let html="<table><tr><th>LOT</th><th>AREA</th><th>YEAR</th><th>MONTH</th><th>TIME</th></tr>"
+
+history.forEach(h=>{
+
+html+=`
+<tr>
+<td>${h.lot}</td>
+<td>${h.area}</td>
+<td>${h.year}</td>
+<td>${h.month}</td>
+<td>${h.time}</td>
+</tr>
+`
+
+})
+
+html+="</table>"
+
+document.getElementById("historyTable").innerHTML=html
+
+}
+
+function clearHistory(){
+
+if(confirm("Hapus semua history?")){
+
+localStorage.removeItem("scanHistory")
+
+document.getElementById("historyTable").innerHTML=""
+
+alert("History berhasil dihapus")
 
 }
 
 }
-
-render()
 
 </script>
 
 </body>
-    </html>
+</html>
