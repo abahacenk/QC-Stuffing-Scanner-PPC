@@ -3,101 +3,90 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>PPC Quality & Traceability</title>
 
 <script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
 <style>
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f172a; color: white; margin: 0; padding: 16px; }
+.container { max-width: 520px; margin: auto; }
+h1 { text-align: center; color: #38bdf8; font-size: 24px; }
+.card { background: #1e293b; padding: 20px; border-radius: 16px; margin-bottom: 20px; }
 
-body{
-font-family:Arial, sans-serif;
-margin:0;
-background:#0f172a;
-color:white;
+input, button {
+width: 100%;
+padding: 14px;
+margin-top: 10px;
+border-radius: 10px;
+border: none;
+font-size: 16px;
+box-sizing: border-box;
 }
 
-.container{
-max-width:500px;
-margin:auto;
-padding:20px;
+input {
+background: #334155;
+color: white;
+border: 1px solid #475569;
 }
 
-h1{
-text-align:center;
-margin-bottom:20px;
+button {
+background: #38bdf8;
+color: #0f172a;
+font-weight: bold;
+cursor: pointer;
 }
 
-input,button{
-width:100%;
-padding:14px;
-margin-top:10px;
-border-radius:10px;
-border:none;
-font-size:16px;
-}
-
-input{
-background:#334155;
-color:white;
-}
-
-button{
-background:#38bdf8;
-font-weight:bold;
-cursor:pointer;
-}
-
-hr{
-margin:20px 0;
-border:1px solid #334155;
-}
-
-#reader{
-margin-top:10px;
-}
-
-#result{
-margin-top:15px;
-padding:18px;
-border-radius:14px;
-text-align:center;
-display:none;
-}
-
-.green{
-background:#065f46;
-border:2px solid #10b981;
-display:block !important;
-}
-
-.red{
-background:#7f1d1d;
-border:2px solid #ef4444;
-display:block !important;
-}
-
-table{
-width:100%;
-border-collapse:collapse;
-font-size:13px;
-margin-top:20px;
-}
-
-th,td{
-padding:10px;
-border-bottom:1px solid #334155;
-text-align:left;
-}
-
-.history-btn{
-background:#6366f1;
-}
-
-.clear-btn{
+button.danger{
 background:#ef4444;
+color:white;
 }
 
+#reader {
+width: 100%;
+border-radius: 12px;
+overflow: hidden;
+margin-top: 10px;
+background: #000;
+}
+
+#result {
+margin-top: 15px;
+padding: 16px;
+border-radius: 14px;
+text-align: center;
+display: none;
+}
+
+.green {
+background: #065f46;
+border: 2px solid #10b981;
+display: block !important;
+}
+
+.red {
+background: #7f1d1d;
+border: 2px solid #ef4444;
+display: block !important;
+}
+
+table {
+width: 100%;
+border-collapse: collapse;
+font-size: 13px;
+}
+
+th, td {
+padding: 12px 8px;
+border-bottom: 1px solid #334155;
+text-align: left;
+}
+
+th {
+color: #94a3b8;
+text-transform: uppercase;
+font-size: 11px;
+}
 </style>
 </head>
 
@@ -107,174 +96,286 @@ background:#ef4444;
 
 <h1>PPC Quality & Traceability</h1>
 
-<input id="inputCode" placeholder="Input Barcode / LOT">
+<div class="card">
+
+<input id="manual" placeholder="Input kode manual / LOT">
 
 <button onclick="processCode()">Submit</button>
 
-<hr>
+<hr style="border-top:1px solid #334155; margin:20px 0;">
 
-<button onclick="startScanner()">Scan Barcode / QR</button>
+<button onclick="startCamera()">Scan Barcode / QR</button>
+
+<button onclick="startOCRCamera()">Scan LOT (OCR Kamera)</button>
 
 <div id="reader"></div>
 
+<input type="file" accept="image/*" onchange="scanFile(event)">
+
+<button class="danger" onclick="clearHistory()">Hapus History</button>
+
+</div>
+
 <div id="result"></div>
 
-<button class="history-btn" onclick="showHistory()">View History</button>
+<h3>Riwayat Pemindaian</h3>
 
-<button class="clear-btn" onclick="clearHistory()">Clear History</button>
+<table>
+<thead>
+<tr>
+<th>Waktu</th>
+<th>Kode</th>
+<th>Status</th>
+</tr>
+</thead>
 
-<div id="historyTable"></div>
+<tbody id="history"></tbody>
+
+</table>
 
 </div>
 
 <script>
 
-let scanner
+document.addEventListener("DOMContentLoaded", function(){
 
-function startScanner(){
+const yearStart = 2022;
+const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const monthLetters = "ABCDEFGHJKLM";
 
-scanner = new Html5Qrcode("reader")
+function letterToNumber(char){
+const map={A:0,B:1,C:2,D:3,E:4,F:5,G:6,H:7,I:8,J:9};
+return map[char?.toUpperCase()] ?? 0;
+}
+
+function monthDiff(date){
+const now=new Date();
+return (now.getFullYear()-date.getFullYear())*12+(now.getMonth()-date.getMonth());
+}
+
+function diff(date){
+let now=new Date();
+let days=Math.floor((now-date)/86400000);
+let months=Math.floor(days/30);
+let rem=days%30;
+return months+" bulan "+rem+" hari";
+}
+
+function letterIndex(char){
+const alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+return alphabet.indexOf(char.toUpperCase());
+}
+
+function decodeLot(lot){
+
+if(lot.length < 7) return null;
+
+const areaNumber = letterIndex(lot[0]);
+const area = "PM"+areaNumber;
+
+const yearCode = lot.substring(3,5);
+
+const year = 2000 +
+(parseInt(yearCode[0]) * 10) +
+letterToNumber(yearCode[1]);
+
+const monthCode = lot.substring(5,7);
+
+const month =
+(parseInt(monthCode[0]) * 10) +
+letterToNumber(monthCode[1]);
+
+return {year,month,area};
+
+}
+
+window.processCode=function(textFromScanner){
+
+const input=textFromScanner || document.getElementById("manual").value.trim();
+
+if(!input) return;
+
+let result=document.getElementById("result");
+
+let lot=decodeLot(input);
+
+if(!lot){
+
+alert("Format LOT tidak valid");
+
+return;
+
+}
+
+let date=new Date(lot.year,lot.month-1,1);
+
+let expired=monthDiff(date)>2;
+
+result.className = expired ? "red":"green";
+
+result.innerHTML=`
+<h2>${expired?"EXPIRED / HOLD":"OK - DAPAT DIKIRIM"}</h2>
+<p>
+<strong>Kode:</strong> ${input}<br>
+<strong>Area:</strong> ${lot.area}<br>
+<strong>Produksi:</strong> ${lot.month}/${lot.year}<br>
+<strong>Umur:</strong> ${diff(date)}
+</p>
+`;
+
+result.style.display="block";
+
+saveHistory(input,expired?"EXPIRED":"OK");
+
+document.getElementById("manual").value="";
+
+}
+
+function saveHistory(code,status){
+
+let h=JSON.parse(localStorage.getItem("hist")||"[]");
+
+h.unshift({
+time:new Date().toLocaleString('id-ID'),
+code,
+status
+});
+
+if(h.length>50)h.pop();
+
+localStorage.setItem("hist",JSON.stringify(h));
+
+render();
+
+}
+
+function render(){
+
+let h=JSON.parse(localStorage.getItem("hist")||"[]");
+
+document.getElementById("history").innerHTML=
+h.map(r=>`
+<tr>
+<td>${r.time}</td>
+<td><strong>${r.code}</strong></td>
+<td style="color:${r.status==='OK'?'#10b981':'#ef4444'}">${r.status}</td>
+</tr>
+`).join("");
+
+}
+
+window.clearHistory=function(){
+
+if(confirm("Hapus semua history scan?")){
+
+localStorage.removeItem("hist");
+
+render();
+
+}
+
+}
+
+let scanner=null;
+
+window.startCamera=async function(){
+
+if(scanner) await scanner.clear();
+
+scanner=new Html5Qrcode("reader");
 
 scanner.start(
-{ facingMode: "environment" },
-{ fps:10, qrbox:250 },
-decoded => {
-
-document.getElementById("inputCode").value = decoded
-processCode()
-scanner.stop()
-
-})
+{facingMode:"environment"},
+{fps:15,qrbox:{width:280,height:140}},
+(text)=>{
+processCode(text);
+scanner.stop();
+}
+);
 
 }
 
-function processCode(){
+window.scanFile=function(e){
 
-let code=document.getElementById("inputCode").value.trim()
+const file=e.target.files[0];
 
-if(!code) return
+if(!file) return;
 
-processLot(code)
+const html5QrCode=new Html5Qrcode("reader");
 
-}
-
-function processLot(lot){
-
-let areaCode = lot[0]
-
-let yearCode = lot.substring(3,5)
-let monthCode = lot.substring(5,7)
-
-let area = decodeArea(areaCode)
-
-let year = decodeYear(yearCode)
-let month = decodeMonth(monthCode)
-
-let resultBox=document.getElementById("result")
-
-resultBox.innerHTML = `
-<b>LOT</b><br>${lot}<br><br>
-<b>AREA</b><br>${area}<br><br>
-<b>PRODUKSI</b><br>${month} / ${year}
-`
-
-resultBox.className="green"
-
-saveHistory(lot,area,year,month)
+html5QrCode.scanFile(file,true)
+.then(text=>processCode(text))
+.catch(()=>alert("Kode tidak terbaca"));
 
 }
 
-function decodeArea(code){
+window.startOCRCamera=async function(){
 
-let alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const video=document.createElement("video");
 
-let num = alphabet.indexOf(code)
+video.style.width="100%";
 
-if(num<0) return "Unknown"
+const reader=document.getElementById("reader");
 
-return "PM"+num
+reader.innerHTML="";
 
-}
+reader.appendChild(video);
 
-function decodeYear(code){
+const stream=await navigator.mediaDevices.getUserMedia({
+video:{facingMode:"environment"}
+});
 
-let map={
-"2F":"2025",
-"2E":"2024",
-"2D":"2023"
-}
+video.srcObject=stream;
 
-return map[code] || code
+video.play();
 
-}
+const btn=document.createElement("button");
 
-function decodeMonth(code){
+btn.innerText="Ambil Gambar LOT";
 
-let map={
-"1A":"October",
-"1B":"November",
-"1C":"December"
-}
+reader.appendChild(btn);
 
-return map[code] || code
+btn.onclick=async()=>{
 
-}
+const canvas=document.createElement("canvas");
 
-function saveHistory(lot,area,year,month){
+canvas.width=video.videoWidth;
 
-let history=JSON.parse(localStorage.getItem("scanHistory")||"[]")
+canvas.height=video.videoHeight;
 
-history.push({
-lot:lot,
-area:area,
-year:year,
-month:month,
-time:new Date().toLocaleString()
-})
+const ctx=canvas.getContext("2d");
 
-localStorage.setItem("scanHistory",JSON.stringify(history))
+ctx.drawImage(video,0,0);
 
-}
+stream.getTracks().forEach(t=>t.stop());
 
-function showHistory(){
+reader.innerHTML="Memproses OCR...";
 
-let history=JSON.parse(localStorage.getItem("scanHistory")||"[]")
+const res=await Tesseract.recognize(canvas,"eng");
 
-let html="<table><tr><th>LOT</th><th>AREA</th><th>YEAR</th><th>MONTH</th><th>TIME</th></tr>"
+let text=res.data.text.replace(/\s/g,"").toUpperCase();
 
-history.forEach(h=>{
+const match=text.match(/[A-Z0-9]{8,}/);
 
-html+=`
-<tr>
-<td>${h.lot}</td>
-<td>${h.area}</td>
-<td>${h.year}</td>
-<td>${h.month}</td>
-<td>${h.time}</td>
-</tr>
-`
+if(match){
 
-})
+processCode(match[0]);
 
-html+="</table>"
+}else{
 
-document.getElementById("historyTable").innerHTML=html
+alert("LOT tidak terbaca");
 
 }
 
-function clearHistory(){
-
-if(confirm("Hapus semua history?")){
-
-localStorage.removeItem("scanHistory")
-
-document.getElementById("historyTable").innerHTML=""
-
-alert("History berhasil dihapus")
+reader.innerHTML="";
 
 }
 
 }
+
+render();
+
+});
 
 </script>
 
