@@ -309,16 +309,13 @@ html5QrCode.scanFile(file,true)
 
 }
 
-window.startOCRCamera=async function(){
+window.startOCRCamera = async function(){
 
 const video=document.createElement("video");
-
 video.style.width="100%";
 
 const reader=document.getElementById("reader");
-
 reader.innerHTML="";
-
 reader.appendChild(video);
 
 const stream=await navigator.mediaDevices.getUserMedia({
@@ -326,36 +323,57 @@ video:{facingMode:"environment"}
 });
 
 video.srcObject=stream;
-
 video.play();
 
-const btn=document.createElement("button");
+/* tombol ambil gambar */
 
+const btn=document.createElement("button");
 btn.innerText="Ambil Gambar LOT";
 
+const closeBtn=document.createElement("button");
+closeBtn.innerText="Tutup Kamera";
+closeBtn.className="danger";
+
 reader.appendChild(btn);
+reader.appendChild(closeBtn);
+
+/* tombol tutup kamera */
+
+closeBtn.onclick=function(){
+stream.getTracks().forEach(t=>t.stop());
+reader.innerHTML="";
+};
+
+/* proses OCR */
 
 btn.onclick=async()=>{
 
 const canvas=document.createElement("canvas");
-
 canvas.width=video.videoWidth;
-
 canvas.height=video.videoHeight;
 
 const ctx=canvas.getContext("2d");
-
 ctx.drawImage(video,0,0);
-
-stream.getTracks().forEach(t=>t.stop());
 
 reader.innerHTML="Memproses OCR...";
 
 const res=await Tesseract.recognize(canvas,"eng");
 
-let text=res.data.text.replace(/\s/g,"").toUpperCase();
+let text=res.data.text.toUpperCase();
 
-const match=text.match(/[A-Z0-9]{8,}/);
+/* filter hanya huruf & angka */
+
+text=text.replace(/[^A-Z0-9]/g,"");
+
+/* ambil maksimal 12 karakter */
+
+text=text.substring(0,12);
+
+/* cari pola LOT */
+
+const match=text.match(/[A-Z0-9]{8,12}/);
+
+stream.getTracks().forEach(t=>t.stop());
 
 if(match){
 
